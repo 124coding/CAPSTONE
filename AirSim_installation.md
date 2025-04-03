@@ -1,9 +1,3 @@
----
-layout: single
-title:  "AirSim_installation"
-categories: study
----
-
 **현재 AirSim을 찾아보며 배우는 입장으로 잘못된 부분이 있을 수 있습니다.**
 
 # AirSim 설명  
