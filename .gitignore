@@ -2,10 +2,11 @@
 .vs/
 *.sln
 *.suo
+*.VC.db
+*.VC.opendb
 Intermediate/
 Saved/
 Binaries/
-Build/
 DerivedDataCache/
 xcuserdata/
 Config/User*.ini
@@ -33,7 +34,3 @@ _ReSharper.*
 *.vspscc
 *.vssscc
 ComponentModelCache/
-
-# OS Specific
-.DS_Store       # macOS
-Thumbs.db       # Windows
