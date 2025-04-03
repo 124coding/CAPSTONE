@@ -1,4 +1,5 @@
 # Unreal Engine
+!AirSim/Unreal/Plugins/AirSim/Source/AirLib/
 .vs/
 *.sln
 *.suo
