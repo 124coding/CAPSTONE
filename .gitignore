@@ -2,8 +2,6 @@
 .vs/
 *.sln
 *.suo
-*.VC.db
-*.VC.opendb
 Intermediate/
 Saved/
 Binaries/
@@ -12,6 +10,29 @@ DerivedDataCache/
 xcuserdata/
 Config/User*.ini
 SourceArt/
+
+# Visual Studio
+Debug/
+Release/
+obj/
+*.exe
+*.dll
+*.pdb
+*.ilk
+*.log
+*.tlog
+*.sdf
+*.opensdf
+*.cachefile
+*.vcxproj.user
+*.sln.docstates
+_ReSharper.*
+*.DotSettings.user
+/packages/
+!/packages/build/
+*.vspscc
+*.vssscc
+ComponentModelCache/
 
 # OS Specific
 .DS_Store       # macOS
