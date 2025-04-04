@@ -10,13 +10,13 @@ AirSim은 Unreal Engine을 기반으로 하며 차량이나 드론의 상태와 
 1. [Epic Games Launcher](https://www.unrealengine.com/download)를 다운로드 받습니다.  
 2. Epic Games Launcher를 실행하고 라이브러리로 가서 4.27.2 버전의 언리얼 엔진을 다운로드 받습니다.  
    화면 상의 +버튼을 누르고 버전을 선택하여 다운받을 수 있습니다.  
-   ![alt text](image.png)  
+   ![alt text](images/image.png)  
 
 ## Visual Studio 2022 설치  
 [Visual Studio 2022](https://visualstudio.microsoft.com/ko/vs/)를 다운로드 받습니다. 이때 C++를 사용한 데스크톱 개발 / .NET 데스크톱 개발 / C++를 사용한 개임 개발 / 개별 요소에서 최신 .NET Framework SDK와 Windows 10 SDK 10.0.19041을 선택하여 설치합니다.  
-![alt text](image-1.png)  
-![alt text](image-2.png)  
-![alt text](image-3.png)  
+![alt text](images/image-1.png)  
+![alt text](images/image-2.png)  
+![alt text](images/image-3.png)  
 
 ## CMAKE
 AirSim 빌드를 하기 위해서는 CMAKE를 설치할 필요가 있습니다.  
