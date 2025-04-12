@@ -12,6 +12,7 @@ DerivedDataCache/
 xcuserdata/
 Config/User*.ini
 SourceArt/
+Plugins/
 
 # Visual Studio
 Debug/
