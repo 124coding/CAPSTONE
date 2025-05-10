@@ -1,0 +1,62 @@
+{
+  "SettingsVersion": 1.2,
+  "SimMode": "Car",
+  "LocalHostIp": "127.0.0.1",
+  "ClockSpeed": 1.0,
+
+  "Vehicles": {
+    "Car": {
+      "VehicleType": "PhysXCar",
+
+      "Sensors": {
+        "Lidar": {
+          "SensorType": 6,
+          "Enabled": true,
+          "NumberOfChannels": 16,
+          "Range": 100000,
+          "PointsPerSecond": 100000,
+          "VerticalFOV": 30.0,
+          "HorizontalFOV": 360.0,
+          "RotationFrequency": 10.0,
+          "X": 0.0,
+          "Y": 0.0,
+          "Z": -1.0,
+          "Roll": 0.0,
+          "Pitch": 0.0,
+          "Yaw": 0.0,
+          "DrawDebugPoints": true
+        },
+        "FrontCamera": {
+          "SensorType": 2,
+          "Enabled": true,
+          "CaptureSettings": [
+            {
+              "ImageType": 0,
+              "Width": 256,
+              "Height": 144,
+              "FOV_Degrees": 90
+            }
+          ],
+          "X": 1.0,
+          "Y": 0.0,
+          "Z": 0.5,
+          "Roll": 0.0,
+          "Pitch": 0.0,
+          "Yaw": 0.0
+        },
+        "DistanceSensorFront": {
+          "SensorType": 11,
+          "Enabled": true,
+          "MinDistance": 0.1,
+          "MaxDistance": 20.0,
+          "X": 1.5,
+          "Y": 0.0,
+          "Z": 0.5,
+          "Pitch": 0.0,
+          "Roll": 0.0,
+          "Yaw": 0.0
+        }
+      }
+    }
+  }
+}
