@@ -1,26 +1,27 @@
 import os
 import numpy as np
 import tensorflow as tf
-from tf.keras.models import Model
-from tf.keras.layers import (
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import (
     Conv2D, MaxPooling2D, Dropout, Flatten,
     Dense, Input
 )
-from tf.keras.optimizers import Nadam
-from tf.keras.callbacks import (
+from tensorflow.keras.optimizers import Nadam
+from tensorflow.keras.callbacks import (
     ReduceLROnPlateau, ModelCheckpoint,
     CSVLogger, EarlyStopping
 )
-from tf.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from sklearn.model_selection import train_test_split
 import cv2
 
 # --- 설정 ---
-DATA_DIR        = "ppo_data"
-MODEL_DIR       = "models"
+DATA_DIR = os.path.join("ppo_data", "data")
+BASE_DIR = os.path.dirname(__file__)
+MODEL_DIR       = os.path.abspath(os.path.join(BASE_DIR, '..', 'models'))
 MODEL_NAME      = "cnn_angle_predictor.h5"
 BATCH_SIZE      = 32
-EPOCHS          = 100
+EPOCHS          = 50
 ROI_SIZE        = (59, 255)      # (height, width)
 VALID_SPLIT     = 0.2
 SEED            = 42
@@ -29,15 +30,33 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 
 # --- 데이터 로딩 & 전처리 함수 ---
 def load_data_paths(data_dir):
-    """이미지 파일 경로와 라벨(.txt) 경로 리스트로 반환"""
     img_paths, labels = [], []
-    for fname in sorted(os.listdir(data_dir)):
-        if fname.lower().endswith(".png"):
-            img_paths.append(os.path.join(data_dir, fname))
-            labels.append(
-                float(fname.replace(".png", ".txt"))
-            )
+
+    # 1. 파일 목록 수집
+    file_list = os.listdir(data_dir)
+
+    # 2. img_ 와 label_ 파일 분리
+    img_files = [f for f in file_list if f.startswith("img_") and f.endswith(".png")]
+    label_files = {f.split("_")[1].split(".")[0]: f for f in file_list if f.startswith("label_") and f.endswith(".txt")}
+
+    # 3. 번호 기준 매칭
+    for img_file in sorted(img_files):
+        number = img_file.split("_")[1].split(".")[0]
+        if number in label_files:
+            img_path = os.path.join(data_dir, img_file)
+            txt_path = os.path.join(data_dir, label_files[number])
+
+            with open(txt_path, 'r') as f:
+                label = float(f.readline().strip().split(',')[0])
+
+            img_paths.append(img_path)
+            labels.append(label)
+        else:
+            print(f"[WARN] 라벨이 없는 이미지: {img_file}")
+
+    print(f"[INFO] 유효한 쌍 개수: {len(img_paths)}")
     return img_paths, np.array(labels, dtype=np.float32)
+
 
 def preprocess_image(path, label):
     """tf.data 맵 함수: 읽어서 전처리"""
@@ -53,6 +72,7 @@ def preprocess_image(path, label):
 
 # --- 경로 & 라벨 ---
 img_paths, labels = load_data_paths(DATA_DIR)
+print(f"[INFO] 로드된 이미지 수: {len(img_paths)} / 라벨 수: {len(labels)}")
 train_paths, val_paths, y_train, y_val = train_test_split(
     img_paths, labels,
     test_size=VALID_SPLIT,

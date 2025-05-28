@@ -2,47 +2,35 @@ import gym
 import airsim
 import numpy as np
 import time
-import cv2
-from keras.models import load_model
+import random
 
-class AirSimEnv(gym.Env):
-    """
-    AirSim 기반 장애물 회피 학습 환경.
-    상태: [CNN 예비 조향각, 현재 속도, 전방 거리]
-    액션: [steering (-1~1), throttle (0~1)]
-    """
+class AirSimStraightEnv(gym.Env):
     metadata = {"render.modes": ["human"]}
 
-    def __init__(self,
-                 client_ip: str = "127.0.0.1",
-                 camera_name: str = "0",
-                 dist_sensor_name: str = "DistanceSensorFront",
-                 cnn_model_path: str = "models/cnn_angle_predictor.h5",
-                 target_speed: float = 5.0,
-                 dt: float = 0.1):
+    def __init__(self, client_ip="127.0.0.1", client_port=41451):
         super().__init__()
-        # AirSim 연결
-        self.client = airsim.CarClient(ip=client_ip)
+        self.client = airsim.CarClient(ip=client_ip, port=client_port)
         self.client.confirmConnection()
         self.client.enableApiControl(True)
         self.client.armDisarm(True)
-        # 차량 제어 객체
         self.car_controls = airsim.CarControls()
 
-        # 센서/카메라 이름
-        self.camera_name = camera_name
-        self.dist_name = dist_sensor_name
-        # CNN 모델 로드
-        self.cnn_model = load_model(cnn_model_path)
+        self.dt = 0.3
+        self.total_distance = 220.0
+        self.target_speed = 5.0
 
-        # 목표 속도 및 타임스텝
-        self.target_speed = target_speed
-        self.dt = dt
+        self.start_x = 0.0
+        self.start_y = 0.0
+        self.goal_y = self.start_y + self.total_distance
 
-        # Observation/Action Space 정의
+        self.prev_pos = None
+        self.no_movement_counter = 0
+        self.stuck_timeout = 10
+        self.min_movement_threshold = 0.1
+
         self.observation_space = gym.spaces.Box(
-            low=np.array([-1.0, 0.0, 0.0]),
-            high=np.array([1.0, 50.0, 20.0]),
+            low=np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+            high=np.array([20.0, 20.0, 20.0, 20.0, 20.0, 20.0]),
             dtype=np.float32
         )
         self.action_space = gym.spaces.Box(
@@ -51,63 +39,113 @@ class AirSimEnv(gym.Env):
             dtype=np.float32
         )
 
-    def reset(self):
-        # 시뮬레이터 초기화
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
         self.client.reset()
-        time.sleep(1)
-        # 초기 관측값 반환
-        return self._get_obs()
+        time.sleep(1.0)
+
+        self.start_x = random.uniform(-80.0, 80.0)
+        self.start_y = 0.0
+        self.goal_y = self.start_y + self.total_distance
+
+        self.car_controls = airsim.CarControls()
+        self.car_controls.is_manual_gear = True
+        self.car_controls.manual_gear = 1
+        self.car_controls.gear_immediate = True
+        self.car_controls.steering = 0.0
+        self.car_controls.throttle = 0.0
+        self.car_controls.brake = 1.0
+        self.client.setCarControls(self.car_controls)
+
+        pose = airsim.Pose(
+            airsim.Vector3r(self.start_x, self.start_y, 0),
+            airsim.to_quaternion(0, 0, -3 * np.pi / 2)
+        )
+        self.client.simSetVehiclePose(pose, ignore_collision=True)
+
+        self.prev_pos = (self.start_x, self.start_y)
+        self.no_movement_counter = 0
+
+        return self._get_obs(), {}
 
     def step(self, action):
-        # 액션 적용
-        steer, throttle = np.clip(action, self.action_space.low, self.action_space.high)
-        self.car_controls.steering = float(steer)
-        self.car_controls.throttle = float(throttle)
+        self.car_controls.steering = float(action[0])
+        self.car_controls.throttle = float(action[1])
         self.car_controls.brake = 0.0
         self.client.setCarControls(self.car_controls)
-        # 시간 경과
+
         time.sleep(self.dt)
-        # 다음 관측 및 보상
         obs = self._get_obs()
+        pos = self.client.getCarState().kinematics_estimated.position
+        distance_traveled = pos.y_val - self.start_y
+
+        # 움직임 감지
+        dx = pos.x_val - self.prev_pos[0]
+        dy = pos.y_val - self.prev_pos[1]
+        delta = np.hypot(dx, dy)
+
+        if delta < self.min_movement_threshold:
+            self.no_movement_counter += 1
+        else:
+            self.no_movement_counter = 0
+
+        self.prev_pos = (pos.x_val, pos.y_val)
+
+        if self.no_movement_counter > self.stuck_timeout:
+            return obs, -10.0, True, False, {}
+
         reward, done = self._get_reward_done(obs)
-        return obs, reward, done, {}
+
+        if distance_traveled >= self.total_distance:
+            done = True
+            lateral_deviation = abs(pos.x_val - self.start_x)
+            reward -= lateral_deviation * 0.05
+
+        return obs, reward, done, False, {}
 
     def _get_obs(self):
-        # 1) 카메라 ROI
-        img_resp = self.client.simGetImages([
-            airsim.ImageRequest(self.camera_name, airsim.ImageType.Scene, False, False)
-        ])[0]
-        img1d = np.frombuffer(img_resp.image_data_uint8, dtype=np.uint8)
-        img = img1d.reshape(img_resp.height, img_resp.width, 3)
-        roi = img[76:135, 0:255, :]  # 학습한 CNN ROI
-        # CNN 예비 조향값
-        norm = roi.astype(np.float32) / 255.0
-        angle = self.cnn_model.predict_on_batch(np.expand_dims(norm, axis=0))[0][0]
+        def get_distance(name):
+            try:
+                d = self.client.getDistanceSensorData(name).distance
+                return np.clip(d if d > 0 else 10.0, 0, 20)
+            except:
+                return 20.0
 
-        # 2) 속도
+        front = get_distance("DistanceSensorFront")
+        left45 = get_distance("DistanceSensorLeft45")
+        right45 = get_distance("DistanceSensorRight45")
+        left22 = get_distance("DistanceSensorLeft22")
+        right22 = get_distance("DistanceSensorRight22")
+
         speed = self.client.getCarState().speed
-
-        # 3) 거리센서
-        dist_data = self.client.getDistanceSensorData(self.dist_name)
-        distance = dist_data.distance if dist_data.distance > 0 else 20.0
-
-        return np.array([angle, speed, distance], dtype=np.float32)
+        return np.array([speed, front, left45, right45, left22, right22], dtype=np.float32)
 
     def _get_reward_done(self, obs):
-        angle, speed, distance = obs
-        # 보상: 안정 주행 유지
-        steer_penalty = -abs(angle)
-        speed_penalty = -abs(speed - self.target_speed)
-        dist_penalty = 0 if distance > 2.0 else -10
-        reward = steer_penalty + speed_penalty + dist_penalty
-        # 종료: 충돌(거리 매우 가까움)
-        done = distance < 0.1
-        return float(reward), bool(done)
+        speed, front, left45, right45, left22, right22 = obs
+        reward = 0.0
+
+        if min(front, left45, right45, left22, right22) < 0.5:
+            reward -= 10.0
+            return reward, True
+
+        avoidance_triggered = any(sensor < 5.0 for sensor in [front, left45, right45, left22, right22])
+
+        if avoidance_triggered:
+            reward += 0.5
+            reward -= abs(self.car_controls.steering) * speed * 0.02
+
+            def balance_reward(d1, d2):
+                diff = abs(d1 - d2)
+                return max(0.0, 0.3 - diff * 0.05)
+
+            reward += balance_reward(left45, right45)
+            reward += balance_reward(left22, right22)
+
+        return reward, False
 
     def render(self, mode='human'):
         pass
 
     def close(self):
-        # API 제어 해제
         self.client.enableApiControl(False)
         self.client.armDisarm(False)
